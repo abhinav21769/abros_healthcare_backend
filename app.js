@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const connectDB = require('./src/config/database');
 const medicineRoutes = require('./src/routes/medicine.routes');
 const customerRoutes = require('./src/routes/customer.routes');
@@ -10,6 +11,7 @@ const app = express();
 connectDB();
 
 // Middleware
+app.use(cors()); // Enable CORS for all routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
