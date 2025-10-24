@@ -36,9 +36,8 @@ const customerSchema = new mongoose.Schema({
 });
 
 // Index for efficient searching
+// Note: dlNo and gstin already have indexes due to unique: true
 customerSchema.index({ name: 1, contact: 1 });
-customerSchema.index({ dlNo: 1 });
-customerSchema.index({ gstin: 1 });
 
 const Customer = mongoose.model('Customer', customerSchema);
 
