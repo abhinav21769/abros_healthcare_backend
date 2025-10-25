@@ -14,19 +14,19 @@ const customerSchema = new mongoose.Schema({
     },
     contact: {
         type: String,
-        required: [true, 'Contact number is required'],
+        
         trim: true
     },
     gstin: {
         type: String,
-        required: [true, 'GSTIN is required'],
+        
         trim: true,
         uppercase: true,
         unique: true
     },
     dlNo: {
         type: String,
-        required: [true, 'D.L NO is required'],
+        
         trim: true,
         uppercase: true,
         unique: true
