@@ -20,10 +20,7 @@ const medicineSchema = new mongoose.Schema({
     packagingType: {
         type: String,
         required: [true, 'Packaging type is required'],
-        enum: {
-            values: ['Tablet', 'Capsule', 'Syrup', 'Injection', 'Cream', 'Ointment', 'Drops', 'Powder', 'Other'],
-            message: '{VALUE} is not a valid packaging type'
-        }
+        trim: true
     },
     mrp: {
         type: Number,
