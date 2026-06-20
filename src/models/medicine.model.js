@@ -45,10 +45,20 @@ const medicineSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    rate: {
+      type: Number,
+      required: [true, "Rate is required"],
+      min: [0, "Rate cannot be negative"],
+    },
+    ptr: {
+      type: Number,
+      required: [true, "PTR is required"],
+      min: [0, "PTR cannot be negative"],
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Index for efficient querying

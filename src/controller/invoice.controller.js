@@ -1,4 +1,6 @@
 const Invoice = require("../models/invoice.model");
+const { ERROR_CODES, sendSuccess, sendError } = require("../utils/response");
+const { SUCCESS, ERRORS, getUserMessage } = require("../utils/messages");
 
 const calculateItemAmount = (quantity, rate) =>
   Math.round(quantity * rate * 100) / 100;
@@ -39,23 +41,17 @@ const createInvoice = async (req, res) => {
     await invoice.populate("customer", "name address contact gstin dlNo");
     await invoice.populate("items.medicine", "name mrp packagingType");
 
-    res.status(201).json({
-      success: true,
-      message: "Invoice created successfully",
+    return sendSuccess(res, {
+      message: SUCCESS.invoice.created,
       data: invoice,
+      statusCode: 201,
     });
   } catch (error) {
-    if (error.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        message: "Invoice with this number already exists",
-        error: error.message,
-      });
-    }
-    res.status(400).json({
-      success: false,
-      message: "Failed to create invoice",
-      error: error.message,
+    return sendError(res, {
+      message: ERRORS.saveFailed.invoice,
+      code: error.code === 11000 ? ERROR_CODES.DUPLICATE_KEY : ERROR_CODES.VALIDATION_ERROR,
+      errorMessage: getUserMessage(error, ERRORS.saveFailed.invoice),
+      statusCode: 400,
     });
   }
 };
@@ -91,21 +87,23 @@ const getAllInvoices = async (req, res) => {
 
     const total = await Invoice.countDocuments(filter);
 
-    res.status(200).json({
-      success: true,
-      data: invoices,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
-        totalItems: total,
-        itemsPerPage: parseInt(limit),
+    return sendSuccess(res, {
+      data: {
+        items: invoices,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / limit),
+          totalItems: total,
+          itemsPerPage: parseInt(limit),
+        },
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch invoices",
-      error: error.message,
+    return sendError(res, {
+      message: ERRORS.loadFailed.invoices,
+      code: ERROR_CODES.INTERNAL_ERROR,
+      errorMessage: ERRORS.loadFailed.invoices,
+      statusCode: 500,
     });
   }
 };
@@ -117,21 +115,21 @@ const getInvoiceById = async (req, res) => {
       .populate("items.medicine", "name mrp packagingType batchNumber");
 
     if (!invoice) {
-      return res.status(404).json({
-        success: false,
-        message: "Invoice not found",
+      return sendError(res, {
+        message: ERRORS.notFound.invoice,
+        code: ERROR_CODES.NOT_FOUND,
+        errorMessage: ERRORS.notFound.invoice,
+        statusCode: 404,
       });
     }
 
-    res.status(200).json({
-      success: true,
-      data: invoice,
-    });
+    return sendSuccess(res, { data: invoice });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch invoice",
-      error: error.message,
+    return sendError(res, {
+      message: ERRORS.loadFailed.invoice,
+      code: ERROR_CODES.INTERNAL_ERROR,
+      errorMessage: ERRORS.loadFailed.invoice,
+      statusCode: 500,
     });
   }
 };
@@ -155,29 +153,24 @@ const updateInvoice = async (req, res) => {
       .populate("items.medicine", "name mrp packagingType");
 
     if (!invoice) {
-      return res.status(404).json({
-        success: false,
-        message: "Invoice not found",
+      return sendError(res, {
+        message: ERRORS.notFound.invoice,
+        code: ERROR_CODES.NOT_FOUND,
+        errorMessage: ERRORS.notFound.invoice,
+        statusCode: 404,
       });
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Invoice updated successfully",
+    return sendSuccess(res, {
+      message: SUCCESS.invoice.updated,
       data: invoice,
     });
   } catch (error) {
-    if (error.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        message: "Invoice with this number already exists",
-        error: error.message,
-      });
-    }
-    res.status(400).json({
-      success: false,
-      message: "Failed to update invoice",
-      error: error.message,
+    return sendError(res, {
+      message: ERRORS.saveFailed.invoice,
+      code: error.code === 11000 ? ERROR_CODES.DUPLICATE_KEY : ERROR_CODES.VALIDATION_ERROR,
+      errorMessage: getUserMessage(error, ERRORS.saveFailed.invoice),
+      statusCode: 400,
     });
   }
 };
@@ -187,22 +180,24 @@ const deleteInvoice = async (req, res) => {
     const invoice = await Invoice.findByIdAndDelete(req.params.id);
 
     if (!invoice) {
-      return res.status(404).json({
-        success: false,
-        message: "Invoice not found",
+      return sendError(res, {
+        message: ERRORS.notFound.invoice,
+        code: ERROR_CODES.NOT_FOUND,
+        errorMessage: ERRORS.notFound.invoice,
+        statusCode: 404,
       });
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Invoice deleted successfully",
+    return sendSuccess(res, {
+      message: SUCCESS.invoice.deleted,
       data: invoice,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to delete invoice",
-      error: error.message,
+    return sendError(res, {
+      message: ERRORS.deleteFailed.invoice,
+      code: ERROR_CODES.INTERNAL_ERROR,
+      errorMessage: ERRORS.deleteFailed.invoice,
+      statusCode: 500,
     });
   }
 };
@@ -228,23 +223,24 @@ const getInvoiceStats = async (req, res) => {
     const pendingAmount =
       pendingResult.length > 0 ? pendingResult[0].pendingAmount : 0;
 
-    res.status(200).json({
-      success: true,
-      message: "Invoice statistics",
-      stats: {
-        totalInvoices,
-        pendingInvoices,
-        paidInvoices,
-        cancelledInvoices,
-        totalRevenue: totalRevenue.toFixed(2),
-        pendingAmount: pendingAmount.toFixed(2),
+    return sendSuccess(res, {
+      data: {
+        stats: {
+          totalInvoices,
+          pendingInvoices,
+          paidInvoices,
+          cancelledInvoices,
+          totalRevenue: totalRevenue.toFixed(2),
+          pendingAmount: pendingAmount.toFixed(2),
+        },
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch invoice stats",
-      error: error.message,
+    return sendError(res, {
+      message: ERRORS.loadFailed.invoiceStats,
+      code: ERROR_CODES.INTERNAL_ERROR,
+      errorMessage: ERRORS.loadFailed.invoiceStats,
+      statusCode: 500,
     });
   }
 };
@@ -255,15 +251,15 @@ const generateInvoiceNumber = async (req, res) => {
     const year = new Date().getFullYear();
     const invoiceNumber = `AH-${year}-${String(count + 1).padStart(4, "0")}`;
 
-    res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       data: { invoiceNumber },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to generate invoice number",
-      error: error.message,
+    return sendError(res, {
+      message: ERRORS.loadFailed.invoiceNumber,
+      code: ERROR_CODES.INTERNAL_ERROR,
+      errorMessage: ERRORS.loadFailed.invoiceNumber,
+      statusCode: 500,
     });
   }
 };

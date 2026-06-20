@@ -1,34 +1,26 @@
 const Customer = require("../models/customer.model");
+const { ERROR_CODES, sendSuccess, sendError } = require("../utils/response");
+const { SUCCESS, ERRORS, getUserMessage } = require("../utils/messages");
 
-// Create a new customer
 const createCustomer = async (req, res) => {
   try {
     const customer = new Customer(req.body);
     await customer.save();
-    res.status(201).json({
-      success: true,
-      message: "Customer created successfully",
+    return sendSuccess(res, {
+      message: SUCCESS.customer.created,
       data: customer,
+      statusCode: 201,
     });
   } catch (error) {
-    // Handle duplicate DL NO or GSTIN error
-    if (error.code === 11000) {
-      const duplicateField = Object.keys(error.keyPattern)[0];
-      return res.status(400).json({
-        success: false,
-        message: `Customer with this ${duplicateField.toUpperCase()} already exists`,
-        error: error.message,
-      });
-    }
-    res.status(400).json({
-      success: false,
-      message: "Failed to create customer",
-      error: error.message,
+    return sendError(res, {
+      message: ERRORS.saveFailed.customer,
+      code: error.code === 11000 ? ERROR_CODES.DUPLICATE_KEY : ERROR_CODES.VALIDATION_ERROR,
+      errorMessage: getUserMessage(error, ERRORS.saveFailed.customer),
+      statusCode: 400,
     });
   }
 };
 
-// Get all customers
 const getAllCustomers = async (req, res) => {
   try {
     const {
@@ -42,7 +34,6 @@ const getAllCustomers = async (req, res) => {
       gstin,
     } = req.query;
 
-    // Build filter object
     const filter = {};
 
     if (name) {
@@ -61,64 +52,61 @@ const getAllCustomers = async (req, res) => {
       filter.gstin = { $regex: gstin, $options: "i" };
     }
 
-    // Calculate pagination
     const skip = (page - 1) * limit;
     const sortOrder = order === "asc" ? 1 : -1;
 
-    // Get customers with pagination
     const customers = await Customer.find(filter)
       .sort({ [sortBy]: sortOrder })
       .limit(parseInt(limit))
       .skip(skip);
 
-    // Get total count for pagination
     const total = await Customer.countDocuments(filter);
 
-    res.status(200).json({
-      success: true,
-      data: customers,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
-        totalItems: total,
-        itemsPerPage: parseInt(limit),
+    return sendSuccess(res, {
+      data: {
+        items: customers,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / limit),
+          totalItems: total,
+          itemsPerPage: parseInt(limit),
+        },
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch customers",
-      error: error.message,
+    return sendError(res, {
+      message: ERRORS.loadFailed.customers,
+      code: ERROR_CODES.INTERNAL_ERROR,
+      errorMessage: ERRORS.loadFailed.customers,
+      statusCode: 500,
     });
   }
 };
 
-// Get a single customer by ID
 const getCustomerById = async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id);
 
     if (!customer) {
-      return res.status(404).json({
-        success: false,
-        message: "Customer not found",
+      return sendError(res, {
+        message: ERRORS.notFound.customer,
+        code: ERROR_CODES.NOT_FOUND,
+        errorMessage: ERRORS.notFound.customer,
+        statusCode: 404,
       });
     }
 
-    res.status(200).json({
-      success: true,
-      data: customer,
-    });
+    return sendSuccess(res, { data: customer });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch customer",
-      error: error.message,
+    return sendError(res, {
+      message: ERRORS.loadFailed.customer,
+      code: ERROR_CODES.INTERNAL_ERROR,
+      errorMessage: ERRORS.loadFailed.customer,
+      statusCode: 500,
     });
   }
 };
 
-// Search customer by DL NO
 const getCustomerByDlNo = async (req, res) => {
   try {
     const customer = await Customer.findOne({
@@ -126,26 +114,25 @@ const getCustomerByDlNo = async (req, res) => {
     });
 
     if (!customer) {
-      return res.status(404).json({
-        success: false,
-        message: "Customer not found with this DL NO",
+      return sendError(res, {
+        message: ERRORS.notFound.customerByDlNo,
+        code: ERROR_CODES.NOT_FOUND,
+        errorMessage: ERRORS.notFound.customerByDlNo,
+        statusCode: 404,
       });
     }
 
-    res.status(200).json({
-      success: true,
-      data: customer,
-    });
+    return sendSuccess(res, { data: customer });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch customer",
-      error: error.message,
+    return sendError(res, {
+      message: ERRORS.loadFailed.customer,
+      code: ERROR_CODES.INTERNAL_ERROR,
+      errorMessage: ERRORS.loadFailed.customer,
+      statusCode: 500,
     });
   }
 };
 
-// Update a customer
 const updateCustomer = async (req, res) => {
   try {
     const customer = await Customer.findByIdAndUpdate(req.params.id, req.body, {
@@ -154,79 +141,72 @@ const updateCustomer = async (req, res) => {
     });
 
     if (!customer) {
-      return res.status(404).json({
-        success: false,
-        message: "Customer not found",
+      return sendError(res, {
+        message: ERRORS.notFound.customer,
+        code: ERROR_CODES.NOT_FOUND,
+        errorMessage: ERRORS.notFound.customer,
+        statusCode: 404,
       });
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Customer updated successfully",
+    return sendSuccess(res, {
+      message: SUCCESS.customer.updated,
       data: customer,
     });
   } catch (error) {
-    // Handle duplicate DL NO or GSTIN error
-    if (error.code === 11000) {
-      const duplicateField = Object.keys(error.keyPattern)[0];
-      return res.status(400).json({
-        success: false,
-        message: `Customer with this ${duplicateField.toUpperCase()} already exists`,
-        error: error.message,
-      });
-    }
-    res.status(400).json({
-      success: false,
-      message: "Failed to update customer",
-      error: error.message,
+    return sendError(res, {
+      message: ERRORS.saveFailed.customer,
+      code: error.code === 11000 ? ERROR_CODES.DUPLICATE_KEY : ERROR_CODES.VALIDATION_ERROR,
+      errorMessage: getUserMessage(error, ERRORS.saveFailed.customer),
+      statusCode: 400,
     });
   }
 };
 
-// Delete a customer
 const deleteCustomer = async (req, res) => {
   try {
     const customer = await Customer.findByIdAndDelete(req.params.id);
 
     if (!customer) {
-      return res.status(404).json({
-        success: false,
-        message: "Customer not found",
+      return sendError(res, {
+        message: ERRORS.notFound.customer,
+        code: ERROR_CODES.NOT_FOUND,
+        errorMessage: ERRORS.notFound.customer,
+        statusCode: 404,
       });
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Customer deleted successfully",
+    return sendSuccess(res, {
+      message: SUCCESS.customer.deleted,
       data: customer,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to delete customer",
-      error: error.message,
+    return sendError(res, {
+      message: ERRORS.deleteFailed.customer,
+      code: ERROR_CODES.INTERNAL_ERROR,
+      errorMessage: ERRORS.deleteFailed.customer,
+      statusCode: 500,
     });
   }
 };
 
-// Get customer statistics
 const getCustomerStats = async (req, res) => {
   try {
-    // Get total customers
     const totalCustomers = await Customer.countDocuments();
 
-    res.status(200).json({
-      success: true,
-      message: "Customer statistics",
-      stats: {
-        totalCustomers: totalCustomers,
+    return sendSuccess(res, {
+      data: {
+        stats: {
+          totalCustomers,
+        },
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch customer stats",
-      error: error.message,
+    return sendError(res, {
+      message: ERRORS.loadFailed.customerStats,
+      code: ERROR_CODES.INTERNAL_ERROR,
+      errorMessage: ERRORS.loadFailed.customerStats,
+      statusCode: 500,
     });
   }
 };
