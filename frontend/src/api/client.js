@@ -1,4 +1,8 @@
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const PRODUCTION_API_URL = "https://abros-healthcare.onrender.com";
+
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? PRODUCTION_API_URL : "http://localhost:3000");
 
 async function request(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
