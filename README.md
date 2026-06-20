@@ -17,7 +17,7 @@ Swagger docs: `http://localhost:3000/api-docs`
 
 The React dashboard lives in a separate repo:
 
-**https://github.com/abhinav21769/abros-healthcare-web**
+**https://github.com/abhinav21769/abros-web-frontend**
 
 Live app: https://abros-healthcare.web.app
 
