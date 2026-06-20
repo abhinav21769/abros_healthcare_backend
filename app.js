@@ -6,6 +6,7 @@ const connectDB = require("./src/config/database");
 const swaggerDocument = require("./src/config/swagger");
 const medicineRoutes = require("./src/routes/medicine.routes");
 const customerRoutes = require("./src/routes/customer.routes");
+const invoiceRoutes = require("./src/routes/invoice.routes");
 
 const app = express();
 
@@ -29,12 +30,14 @@ app.get("/", (req, res) => {
       swagger: "/api-docs",
       medicines: "/api/medicines",
       customers: "/api/customers",
+      invoices: "/api/invoices",
     },
   });
 });
 
 app.use("/api/medicines", medicineRoutes);
 app.use("/api/customers", customerRoutes);
+app.use("/api/invoices", invoiceRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
