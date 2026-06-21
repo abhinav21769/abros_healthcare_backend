@@ -1,23 +1,17 @@
 /**
- * Rebuilds customer gstin/dlNo indexes as sparse unique so multiple
- * customers can omit those fields.
+ * Cleans empty gstin/dlNo values and rebuilds customer unique indexes.
  *
  * Usage: node scripts/fix-customer-indexes.js
  */
 require("dotenv").config();
 const mongoose = require("mongoose");
 
-async function rebuildIndex(collection, key, name) {
+async function dropIfExists(collection, name) {
   const indexes = await collection.indexes();
-  const existing = indexes.find((index) => index.name === name);
-
-  if (existing && !existing.sparse) {
-    console.log(`Dropping non-sparse index ${name}`);
+  if (indexes.some((index) => index.name === name)) {
     await collection.dropIndex(name);
+    console.log(`Dropped index ${name}`);
   }
-
-  await collection.createIndex(key, { unique: true, sparse: true, name });
-  console.log(`Ensured sparse unique index ${name}`);
 }
 
 async function main() {
@@ -29,11 +23,46 @@ async function main() {
   await mongoose.connect(process.env.MONGO_URI);
   const collection = mongoose.connection.collection("customers");
 
-  await rebuildIndex(collection, { gstin: 1 }, "gstin_1");
-  await rebuildIndex(collection, { dlNo: 1 }, "dlNo_1");
+  const gstinCleanup = await collection.updateMany(
+    { gstin: "" },
+    { $unset: { gstin: "" } },
+  );
+  const dlCleanup = await collection.updateMany(
+    { dlNo: "" },
+    { $unset: { dlNo: "" } },
+  );
+  console.log(
+    `Unset empty gstin on ${gstinCleanup.modifiedCount} customer(s), empty dlNo on ${dlCleanup.modifiedCount} customer(s).`,
+  );
+
+  await dropIfExists(collection, "gstin_1");
+  await dropIfExists(collection, "dlNo_1");
+
+  await collection.createIndex(
+    { gstin: 1 },
+    {
+      unique: true,
+      name: "gstin_1",
+      partialFilterExpression: {
+        gstin: { $exists: true, $type: "string", $gt: "" },
+      },
+    },
+  );
+  await collection.createIndex(
+    { dlNo: 1 },
+    {
+      unique: true,
+      name: "dlNo_1",
+      partialFilterExpression: {
+        dlNo: { $exists: true, $type: "string", $gt: "" },
+      },
+    },
+  );
+
+  console.log("Customer indexes rebuilt.");
+  console.log(JSON.stringify(await collection.indexes(), null, 2));
 
   await mongoose.disconnect();
-  console.log("Customer indexes updated.");
 }
 
 main().catch(async (error) => {
