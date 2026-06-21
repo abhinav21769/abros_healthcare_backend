@@ -247,7 +247,7 @@ const getInventoryStats = async (req, res) => {
       {
         $group: {
           _id: null,
-          totalValue: { $sum: { $multiply: ["$mrp", "$quantity"] } },
+          totalValue: { $sum: { $multiply: ["$rate", "$quantity"] } },
         },
       },
     ]);

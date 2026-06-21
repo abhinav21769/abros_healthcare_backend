@@ -16,6 +16,11 @@ const invoiceItemSchema = new mongoose.Schema(
       required: [true, "Quantity is required"],
       min: [1, "Quantity must be at least 1"],
     },
+    free: {
+      type: Number,
+      default: 0,
+      min: [0, "Free quantity cannot be negative"],
+    },
     rate: {
       type: Number,
       required: [true, "Rate is required"],

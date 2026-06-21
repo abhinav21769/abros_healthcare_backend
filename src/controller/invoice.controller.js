@@ -2,16 +2,38 @@ const Invoice = require("../models/invoice.model");
 const { ERROR_CODES, sendSuccess, sendError } = require("../utils/response");
 const { SUCCESS, ERRORS, getUserMessage } = require("../utils/messages");
 
+const MEDICINE_POPULATE_FIELDS =
+  "name mrp rate packagingType batchNumber expiryDate";
+
 const calculateItemAmount = (quantity, rate) =>
   Math.round(quantity * rate * 100) / 100;
+
+const normalizeInvoiceDate = (value) => {
+  if (!value) return undefined;
+
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T00:00:00+05:30`);
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+
+  const istDate = date.toLocaleDateString("en-CA", {
+    timeZone: "Asia/Kolkata",
+  });
+
+  return new Date(`${istDate}T00:00:00+05:30`);
+};
 
 const buildInvoiceTotals = (items) => {
   const normalizedItems = items.map((item) => {
     const quantity = Number(item.quantity);
+    const free = Number(item.free) || 0;
     const rate = Number(item.rate);
     return {
       ...item,
       quantity,
+      free,
       rate,
       amount: calculateItemAmount(quantity, rate),
     };
@@ -27,11 +49,12 @@ const buildInvoiceTotals = (items) => {
 
 const createInvoice = async (req, res) => {
   try {
-    const { items, ...rest } = req.body;
+    const { items, invoiceDate, ...rest } = req.body;
     const { items: normalizedItems, subtotal, total } = buildInvoiceTotals(items);
 
     const invoice = new Invoice({
       ...rest,
+      invoiceDate: normalizeInvoiceDate(invoiceDate),
       items: normalizedItems,
       subtotal,
       total,
@@ -39,7 +62,7 @@ const createInvoice = async (req, res) => {
 
     await invoice.save();
     await invoice.populate("customer", "name address contact gstin dlNo");
-    await invoice.populate("items.medicine", "name mrp packagingType");
+    await invoice.populate("items.medicine", MEDICINE_POPULATE_FIELDS);
 
     return sendSuccess(res, {
       message: SUCCESS.invoice.created,
@@ -112,7 +135,7 @@ const getInvoiceById = async (req, res) => {
   try {
     const invoice = await Invoice.findById(req.params.id)
       .populate("customer", "name address contact gstin dlNo")
-      .populate("items.medicine", "name mrp packagingType batchNumber");
+      .populate("items.medicine", MEDICINE_POPULATE_FIELDS);
 
     if (!invoice) {
       return sendError(res, {
@@ -145,12 +168,16 @@ const updateInvoice = async (req, res) => {
       updateData.total = total;
     }
 
+    if (updateData.invoiceDate) {
+      updateData.invoiceDate = normalizeInvoiceDate(updateData.invoiceDate);
+    }
+
     const invoice = await Invoice.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
     })
       .populate("customer", "name address contact gstin dlNo")
-      .populate("items.medicine", "name mrp packagingType");
+      .populate("items.medicine", MEDICINE_POPULATE_FIELDS);
 
     if (!invoice) {
       return sendError(res, {
