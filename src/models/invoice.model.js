@@ -5,6 +5,7 @@ const invoiceItemSchema = new mongoose.Schema(
     medicine: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Medicine",
+      required: [true, "Medicine is required"],
     },
     medicineName: {
       type: String,
@@ -29,6 +30,12 @@ const invoiceItemSchema = new mongoose.Schema(
     hsn: {
       type: String,
       trim: true,
+    },
+    gstRate: {
+      type: Number,
+      default: 5,
+      min: [0, "GST rate cannot be negative"],
+      max: [100, "GST rate cannot exceed 100"],
     },
     amount: {
       type: Number,

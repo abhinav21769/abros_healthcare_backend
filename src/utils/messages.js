@@ -88,6 +88,7 @@ const VALIDATION_MESSAGES = {
   "Invoice number is required": "Please enter an invoice number.",
   "Customer is required": "Please select a customer.",
   "At least one item is required": "Please add at least one item to the invoice.",
+  "Medicine is required": "Please select a medicine from inventory for each line item.",
   "Medicine name is required": "Please enter the medicine name for each item.",
   "Quantity is required": "Please enter the quantity for each item.",
   "Quantity must be at least 1": "Quantity must be at least 1.",

@@ -2,11 +2,10 @@ const Invoice = require("../models/invoice.model");
 const { ERROR_CODES, sendSuccess, sendError } = require("../utils/response");
 const { SUCCESS, ERRORS, getUserMessage } = require("../utils/messages");
 
-const MEDICINE_POPULATE_FIELDS =
-  "name mrp rate packagingType batchNumber expiryDate manufacturer hsn";
+const { buildInvoiceTotals } = require("../utils/invoiceTax");
 
-const calculateItemAmount = (quantity, rate) =>
-  Math.round(quantity * rate * 100) / 100;
+const MEDICINE_POPULATE_FIELDS =
+  "name mrp rate packagingType batchNumber expiryDate manufacturer hsn gstRate";
 
 const normalizeInvoiceDate = (value) => {
   if (!value) return undefined;
@@ -23,28 +22,6 @@ const normalizeInvoiceDate = (value) => {
   });
 
   return new Date(`${istDate}T00:00:00+05:30`);
-};
-
-const buildInvoiceTotals = (items) => {
-  const normalizedItems = items.map((item) => {
-    const quantity = Number(item.quantity);
-    const free = Number(item.free) || 0;
-    const rate = Number(item.rate);
-    return {
-      ...item,
-      quantity,
-      free,
-      rate,
-      amount: calculateItemAmount(quantity, rate),
-    };
-  });
-
-  const subtotal = normalizedItems.reduce((sum, item) => sum + item.amount, 0);
-  return {
-    items: normalizedItems,
-    subtotal: Math.round(subtotal * 100) / 100,
-    total: Math.round(subtotal * 100) / 100,
-  };
 };
 
 const createInvoice = async (req, res) => {
