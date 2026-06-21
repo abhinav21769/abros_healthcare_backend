@@ -36,15 +36,24 @@ function aggregateStockByMedicine(items = []) {
   return totals;
 }
 
-function isInvoiceStockActive(status) {
+function isInvoiceStockActive(status, invoiceType = "sale") {
+  if (invoiceType === "purchase") {
+    return status === "paid";
+  }
   return status !== "cancelled";
 }
 
-function computeStockChanges(oldItems, oldStatus, newItems, newStatus) {
+function computeStockChanges(
+  oldItems,
+  oldStatus,
+  newItems,
+  newStatus,
+  invoiceType = "sale",
+) {
   const oldTotals = aggregateStockByMedicine(oldItems);
   const newTotals = aggregateStockByMedicine(newItems);
-  const wasActive = isInvoiceStockActive(oldStatus);
-  const isActive = isInvoiceStockActive(newStatus);
+  const wasActive = isInvoiceStockActive(oldStatus, invoiceType);
+  const isActive = isInvoiceStockActive(newStatus, invoiceType);
   const changes = new Map();
 
   if (!wasActive && !isActive) {
@@ -67,7 +76,8 @@ function computeStockChanges(oldItems, oldStatus, newItems, newStatus) {
 
   const medicineIds = new Set([...oldTotals.keys(), ...newTotals.keys()]);
   for (const medicineId of medicineIds) {
-    const delta = (newTotals.get(medicineId) || 0) - (oldTotals.get(medicineId) || 0);
+    const delta =
+      (newTotals.get(medicineId) || 0) - (oldTotals.get(medicineId) || 0);
     if (delta !== 0) {
       changes.set(medicineId, delta);
     }
@@ -173,7 +183,12 @@ function invertStockChanges(changes) {
   );
 }
 
-async function applyInvoiceStockChanges(invoiceType, changes, session, ledgerMeta) {
+async function applyInvoiceStockChanges(
+  invoiceType,
+  changes,
+  session,
+  ledgerMeta,
+) {
   const adjusted =
     invoiceType === "purchase" ? invertStockChanges(changes) : changes;
 

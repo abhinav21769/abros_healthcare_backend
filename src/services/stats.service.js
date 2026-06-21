@@ -100,39 +100,96 @@ const getCustomerStatsData = async () => {
 };
 
 const getInvoiceStatsData = async () => {
-  const [facetResult] = await Invoice.aggregate([
-    {
-      $facet: {
-        totalInvoices: [{ $count: "count" }],
-        pendingInvoices: [
-          { $match: { status: "pending" } },
-          { $count: "count" },
-        ],
-        paidInvoices: [{ $match: { status: "paid" } }, { $count: "count" }],
-        cancelledInvoices: [
-          { $match: { status: "cancelled" } },
-          { $count: "count" },
-        ],
-        totalRevenue: [
-          { $match: { status: "paid" } },
-          { $group: { _id: null, total: { $sum: "$total" } } },
-        ],
-        pendingAmount: [
-          { $match: { status: "pending" } },
-          { $group: { _id: null, total: { $sum: "$total" } } },
-        ],
-      },
-    },
-  ]);
+  const saleMatch = { invoiceType: { $ne: "purchase" } };
+  const purchaseMatch = { invoiceType: "purchase" };
+
+  const [salesFacet, purchasesFacet, recentSales, recentPurchases] =
+    await Promise.all([
+      Invoice.aggregate([
+        { $match: saleMatch },
+        {
+          $facet: {
+            totalInvoices: [{ $count: "count" }],
+            pendingInvoices: [
+              { $match: { status: "pending" } },
+              { $count: "count" },
+            ],
+            paidInvoices: [{ $match: { status: "paid" } }, { $count: "count" }],
+            cancelledInvoices: [
+              { $match: { status: "cancelled" } },
+              { $count: "count" },
+            ],
+            totalRevenue: [
+              { $match: { status: "paid" } },
+              { $group: { _id: null, total: { $sum: "$total" } } },
+            ],
+            pendingAmount: [
+              { $match: { status: "pending" } },
+              { $group: { _id: null, total: { $sum: "$total" } } },
+            ],
+          },
+        },
+      ]),
+      Invoice.aggregate([
+        { $match: purchaseMatch },
+        {
+          $facet: {
+            totalInvoices: [{ $count: "count" }],
+            pendingInvoices: [
+              { $match: { status: "pending" } },
+              { $count: "count" },
+            ],
+            paidInvoices: [{ $match: { status: "paid" } }, { $count: "count" }],
+            totalAmount: [
+              { $match: { status: { $ne: "cancelled" } } },
+              { $group: { _id: null, total: { $sum: "$total" } } },
+            ],
+            pendingAmount: [
+              { $match: { status: "pending" } },
+              { $group: { _id: null, total: { $sum: "$total" } } },
+            ],
+          },
+        },
+      ]),
+      Invoice.find(saleMatch)
+        .populate("customer", "name")
+        .select("invoiceNumber invoiceDate total status customer")
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean(),
+      Invoice.find(purchaseMatch)
+        .select(
+          "invoiceNumber invoiceDate total status supplier supplierContact",
+        )
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean(),
+    ]);
+
+  const sales = salesFacet[0];
+  const purchases = purchasesFacet[0];
 
   return {
-    stats: {
-      totalInvoices: facetCount(facetResult.totalInvoices),
-      pendingInvoices: facetCount(facetResult.pendingInvoices),
-      paidInvoices: facetCount(facetResult.paidInvoices),
-      cancelledInvoices: facetCount(facetResult.cancelledInvoices),
-      totalRevenue: facetSum(facetResult.totalRevenue).toFixed(2),
-      pendingAmount: facetSum(facetResult.pendingAmount).toFixed(2),
+    sales: {
+      stats: {
+        totalInvoices: facetCount(sales.totalInvoices),
+        pendingInvoices: facetCount(sales.pendingInvoices),
+        paidInvoices: facetCount(sales.paidInvoices),
+        cancelledInvoices: facetCount(sales.cancelledInvoices),
+        totalRevenue: facetSum(sales.totalRevenue).toFixed(2),
+        pendingAmount: facetSum(sales.pendingAmount).toFixed(2),
+      },
+      recent: recentSales,
+    },
+    purchases: {
+      stats: {
+        totalInvoices: facetCount(purchases.totalInvoices),
+        pendingInvoices: facetCount(purchases.pendingInvoices),
+        paidInvoices: facetCount(purchases.paidInvoices),
+        totalAmount: facetSum(purchases.totalAmount).toFixed(2),
+        pendingAmount: facetSum(purchases.pendingAmount).toFixed(2),
+      },
+      recent: recentPurchases,
     },
   };
 };

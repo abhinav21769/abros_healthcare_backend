@@ -61,7 +61,7 @@ const createInvoice = async (req, res) => {
 
       await created.save({ session });
 
-      if (isInvoiceStockActive(status)) {
+      if (isInvoiceStockActive(status, type)) {
         const ledgerMeta = {
           referenceType: "invoice",
           referenceId: created._id,
@@ -230,6 +230,7 @@ const updateInvoice = async (req, res) => {
         oldStatus,
         newItems,
         newStatus,
+        existing.invoiceType || "sale",
       );
       await applyInvoiceStockChanges(
         existing.invoiceType || "sale",
@@ -289,7 +290,12 @@ const deleteInvoice = async (req, res) => {
         return null;
       }
 
-      if (isInvoiceStockActive(existing.status)) {
+      if (
+        isInvoiceStockActive(
+          existing.status,
+          existing.invoiceType || "sale",
+        )
+      ) {
         const ledgerMeta = {
           referenceType: "invoice",
           referenceId: existing._id,
