@@ -6,7 +6,9 @@ async function main() {
   const [, , username, password, name] = process.argv;
 
   if (!username || !password) {
-    console.error("Usage: node scripts/create-user.js <username> <password> [name]");
+    console.error(
+      "Usage: node scripts/create-user.js <username> <password> [name]",
+    );
     process.exit(1);
   }
 
@@ -29,7 +31,9 @@ async function main() {
     name,
   });
 
-  console.log(`User created: ${user.username}${user.name ? ` (${user.name})` : ""}`);
+  console.log(
+    `User created: ${user.username}${user.name ? ` (${user.name})` : ""}`,
+  );
   await mongoose.disconnect();
 }
 

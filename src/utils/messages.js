@@ -14,6 +14,9 @@ const SUCCESS = {
     updated: "Invoice updated successfully.",
     deleted: "Invoice deleted successfully.",
   },
+  purchase: {
+    created: "Purchase entry saved and stock updated.",
+  },
   auth: {
     login: "Signed in successfully.",
     userCreated: "User created successfully.",
@@ -28,6 +31,7 @@ const ERRORS = {
     customer: "This customer could not be found.",
     customerByDlNo: "No customer found with this Drug License number.",
     invoice: "This invoice could not be found.",
+    purchase: "This purchase entry could not be found.",
     route: "The page or link you used is not available.",
   },
   loadFailed: {
@@ -44,11 +48,16 @@ const ERRORS = {
     invoiceStats: "Could not load invoice summary. Please try again.",
     dashboardStats: "Could not load dashboard summary. Please try again.",
     invoiceNumber: "Could not create a new invoice number. Please try again.",
+    purchases: "Could not load purchase entries. Please refresh and try again.",
+    purchase: "Could not load purchase details. Please try again.",
+    purchaseNumber: "Could not create a new purchase number. Please try again.",
+    ledger: "Could not load stock ledger. Please refresh and try again.",
   },
   saveFailed: {
     medicine: "Could not save medicine. Please check the details and try again.",
     customer: "Could not save customer. Please check the details and try again.",
     invoice: "Could not save invoice. Please check the details and try again.",
+    purchase: "Could not save purchase entry. Please check the details and try again.",
   },
   insufficientStock:
     "Not enough stock in inventory for one or more medicines on this invoice.",

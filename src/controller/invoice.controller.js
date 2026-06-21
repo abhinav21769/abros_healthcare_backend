@@ -5,7 +5,8 @@ const { SUCCESS, ERRORS, getUserMessage } = require("../utils/messages");
 const { buildInvoiceTotals } = require("../utils/invoiceTax");
 const {
   InsufficientStockError,
-  applyStockChanges,
+  addStockForItems,
+  applyInvoiceStockChanges,
   computeStockChanges,
   deductStockForItems,
   isInvoiceStockActive,
@@ -33,9 +34,13 @@ const normalizeInvoiceDate = (value) => {
   return new Date(`${istDate}T00:00:00+05:30`);
 };
 
+const normalizeInvoiceType = (value) =>
+  value === "purchase" ? "purchase" : "sale";
+
 const createInvoice = async (req, res) => {
   try {
-    const { items, invoiceDate, ...rest } = req.body;
+    const { items, invoiceDate, invoiceType, ...rest } = req.body;
+    const type = normalizeInvoiceType(invoiceType);
     const {
       items: normalizedItems,
       subtotal,
@@ -46,6 +51,7 @@ const createInvoice = async (req, res) => {
     const invoice = await withTransaction(async (session) => {
       const created = new Invoice({
         ...rest,
+        invoiceType: type,
         status,
         invoiceDate: normalizeInvoiceDate(invoiceDate),
         items: normalizedItems,
@@ -56,7 +62,23 @@ const createInvoice = async (req, res) => {
       await created.save({ session });
 
       if (isInvoiceStockActive(status)) {
-        await deductStockForItems(normalizedItems, session);
+        const ledgerMeta = {
+          referenceType: "invoice",
+          referenceId: created._id,
+          referenceLabel: created.invoiceNumber,
+        };
+
+        if (type === "purchase") {
+          await addStockForItems(normalizedItems, session, {
+            type: "purchase",
+            ...ledgerMeta,
+          });
+        } else {
+          await deductStockForItems(normalizedItems, session, {
+            type: "sale",
+            ...ledgerMeta,
+          });
+        }
       }
 
       return created;
@@ -95,11 +117,20 @@ const getAllInvoices = async (req, res) => {
       status,
       invoiceNumber,
       customer,
+      invoiceType,
     } = req.query;
 
     const filter = {};
 
     if (status) filter.status = status;
+    if (invoiceType) {
+      const type = normalizeInvoiceType(invoiceType);
+      if (type === "purchase") {
+        filter.invoiceType = "purchase";
+      } else {
+        filter.invoiceType = { $ne: "purchase" };
+      }
+    }
     if (invoiceNumber) {
       filter.invoiceNumber = { $regex: invoiceNumber, $options: "i" };
     }
@@ -180,6 +211,8 @@ const updateInvoice = async (req, res) => {
       updateData.invoiceDate = normalizeInvoiceDate(updateData.invoiceDate);
     }
 
+    delete updateData.invoiceType;
+
     const invoice = await withTransaction(async (session) => {
       const existing = await Invoice.findById(req.params.id).session(session);
 
@@ -198,7 +231,16 @@ const updateInvoice = async (req, res) => {
         newItems,
         newStatus,
       );
-      await applyStockChanges(stockChanges, session);
+      await applyInvoiceStockChanges(
+        existing.invoiceType || "sale",
+        stockChanges,
+        session,
+        {
+          referenceType: "invoice",
+          referenceId: existing._id,
+          referenceLabel: existing.invoiceNumber,
+        },
+      );
 
       return Invoice.findByIdAndUpdate(req.params.id, updateData, {
         new: true,
@@ -248,7 +290,24 @@ const deleteInvoice = async (req, res) => {
       }
 
       if (isInvoiceStockActive(existing.status)) {
-        await restoreStockForItems(existing.items, session);
+        const ledgerMeta = {
+          referenceType: "invoice",
+          referenceId: existing._id,
+          referenceLabel: existing.invoiceNumber,
+          notes: "Invoice deleted",
+        };
+
+        if ((existing.invoiceType || "sale") === "purchase") {
+          await deductStockForItems(existing.items, session, {
+            type: "purchase",
+            ...ledgerMeta,
+          });
+        } else {
+          await restoreStockForItems(existing.items, session, {
+            type: "sale",
+            ...ledgerMeta,
+          });
+        }
       }
 
       await Invoice.findByIdAndDelete(req.params.id, { session });
@@ -297,6 +356,7 @@ const getInvoiceStats = async (req, res) => {
 
 const generateInvoiceNumber = async (req, res) => {
   try {
+    const invoiceType = normalizeInvoiceType(req.query.invoiceType);
     const year = Number(
       new Intl.DateTimeFormat("en-CA", {
         timeZone: "Asia/Kolkata",
@@ -304,11 +364,33 @@ const generateInvoiceNumber = async (req, res) => {
       }).format(new Date()),
     );
     const shortYear = String(year).slice(-2);
-    const prefix = `AH-${shortYear}-`;
-    const legacyPrefix = `AH-${year}-`;
     const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+    if (invoiceType === "purchase") {
+      const prefix = `PO-${shortYear}-`;
+      const legacyPrefixes = [prefix, `PUR-${shortYear}-`, `PAH-${shortYear}-`];
+
+      const count = await Invoice.countDocuments({
+        invoiceType: "purchase",
+        $or: legacyPrefixes.map((legacyPrefix) => ({
+          invoiceNumber: {
+            $regex: `^${escapeRegex(legacyPrefix)}`,
+            $options: "i",
+          },
+        })),
+      });
+      const invoiceNumber = `${prefix}${String(count + 1).padStart(2, "0")}`;
+
+      return sendSuccess(res, {
+        data: { invoiceNumber, invoiceType: "purchase" },
+      });
+    }
+
+    const prefix = `AH-${shortYear}-`;
+    const legacyPrefix = `AH-${year}-`;
+
     const count = await Invoice.countDocuments({
+      invoiceType: { $in: ["sale", null] },
       $or: [
         {
           invoiceNumber: {
@@ -327,7 +409,7 @@ const generateInvoiceNumber = async (req, res) => {
     const invoiceNumber = `${prefix}${String(count + 1).padStart(2, "0")}`;
 
     return sendSuccess(res, {
-      data: { invoiceNumber },
+      data: { invoiceNumber, invoiceType: "sale" },
     });
   } catch (error) {
     return sendError(res, {

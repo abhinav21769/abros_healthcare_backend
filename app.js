@@ -8,6 +8,8 @@ const authRoutes = require("./src/routes/auth.routes");
 const medicineRoutes = require("./src/routes/medicine.routes");
 const customerRoutes = require("./src/routes/customer.routes");
 const invoiceRoutes = require("./src/routes/invoice.routes");
+const purchaseRoutes = require("./src/routes/purchase.routes");
+const ledgerRoutes = require("./src/routes/ledger.routes");
 const dashboardRoutes = require("./src/routes/dashboard.routes");
 const { authenticate } = require("./src/middleware/auth.middleware");
 const { ERROR_CODES, sendSuccess, sendError } = require("./src/utils/response");
@@ -38,6 +40,8 @@ app.get("/", (req, res) => {
         medicines: "/api/medicines",
         customers: "/api/customers",
         invoices: "/api/invoices",
+        purchases: "/api/purchases",
+        ledger: "/api/ledger",
         dashboard: "/api/dashboard",
         ...(isProduction ? {} : { swagger: "/api-docs" }),
       },
@@ -49,6 +53,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/medicines", authenticate, medicineRoutes);
 app.use("/api/customers", authenticate, customerRoutes);
 app.use("/api/invoices", authenticate, invoiceRoutes);
+app.use("/api/purchases", authenticate, purchaseRoutes);
+app.use("/api/ledger", authenticate, ledgerRoutes);
 app.use("/api/dashboard", authenticate, dashboardRoutes);
 
 app.use((err, req, res, next) => {

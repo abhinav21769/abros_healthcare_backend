@@ -1,11 +1,35 @@
 const Medicine = require("../models/medicine.model");
 const { ERROR_CODES, sendSuccess, sendError } = require("../utils/response");
 const { SUCCESS, ERRORS, getUserMessage } = require("../utils/messages");
+const { withTransaction } = require("../services/inventory.service");
+const { recordLedgerEntry } = require("../services/ledger.service");
 
 const createMedicine = async (req, res) => {
   try {
-    const medicine = new Medicine(req.body);
-    await medicine.save();
+    const medicine = await withTransaction(async (session) => {
+      const created = new Medicine(req.body);
+      await created.save({ session });
+
+      if (created.quantity > 0) {
+        await recordLedgerEntry(
+          {
+            medicine: created._id,
+            medicineName: created.name,
+            type: "opening",
+            quantityChange: created.quantity,
+            balanceAfter: created.quantity,
+            referenceType: "medicine",
+            referenceId: created._id,
+            referenceLabel: created.name,
+            notes: "Initial stock",
+          },
+          session,
+        );
+      }
+
+      return created;
+    });
+
     return sendSuccess(res, {
       message: SUCCESS.medicine.created,
       data: medicine,
@@ -106,9 +130,42 @@ const getMedicineById = async (req, res) => {
 
 const updateMedicine = async (req, res) => {
   try {
-    const medicine = await Medicine.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
+    const medicine = await withTransaction(async (session) => {
+      const existing = await Medicine.findById(req.params.id).session(session);
+
+      if (!existing) {
+        return null;
+      }
+
+      const oldQuantity = existing.quantity;
+      const updated = await Medicine.findByIdAndUpdate(req.params.id, req.body, {
+        new: true,
+        runValidators: true,
+        session,
+      });
+
+      if (
+        req.body.quantity != null &&
+        Number(updated.quantity) !== Number(oldQuantity)
+      ) {
+        const delta = Number(updated.quantity) - Number(oldQuantity);
+        await recordLedgerEntry(
+          {
+            medicine: updated._id,
+            medicineName: updated.name,
+            type: "adjustment",
+            quantityChange: delta,
+            balanceAfter: updated.quantity,
+            referenceType: "medicine",
+            referenceId: updated._id,
+            referenceLabel: updated.name,
+            notes: "Manual stock adjustment",
+          },
+          session,
+        );
+      }
+
+      return updated;
     });
 
     if (!medicine) {

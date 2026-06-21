@@ -55,10 +55,43 @@ const invoiceSchema = new mongoose.Schema(
       trim: true,
       uppercase: true,
     },
+    invoiceType: {
+      type: String,
+      enum: ["sale", "purchase"],
+      default: "sale",
+      index: true,
+    },
     customer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Customer",
-      required: [true, "Customer is required"],
+      required() {
+        return this.invoiceType === "sale";
+      },
+    },
+    supplier: {
+      type: String,
+      trim: true,
+      required() {
+        return this.invoiceType === "purchase";
+      },
+    },
+    supplierAddress: {
+      type: String,
+      trim: true,
+    },
+    supplierContact: {
+      type: String,
+      trim: true,
+    },
+    supplierDlNo: {
+      type: String,
+      trim: true,
+      uppercase: true,
+    },
+    supplierGstin: {
+      type: String,
+      trim: true,
+      uppercase: true,
     },
     items: {
       type: [invoiceItemSchema],
@@ -102,6 +135,7 @@ const invoiceSchema = new mongoose.Schema(
 );
 
 invoiceSchema.index({ invoiceNumber: 1 });
+invoiceSchema.index({ invoiceType: 1, invoiceDate: -1 });
 invoiceSchema.index({ customer: 1, invoiceDate: -1 });
 invoiceSchema.index({ status: 1 });
 

@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Medicine = require("../models/medicine.model");
+const { recordLedgerEntry } = require("./ledger.service");
 
 class InsufficientStockError extends Error {
   constructor(medicineName, requested, available) {
@@ -75,7 +76,7 @@ function computeStockChanges(oldItems, oldStatus, newItems, newStatus) {
   return changes;
 }
 
-async function applyStockChanges(changes, session) {
+async function applyStockChanges(changes, session, ledgerMeta) {
   for (const [medicineId, deductDelta] of changes) {
     if (!deductDelta) continue;
 
@@ -94,12 +95,46 @@ async function applyStockChanges(changes, session) {
           medicine?.quantity ?? 0,
         );
       }
+
+      if (ledgerMeta) {
+        await recordLedgerEntry(
+          {
+            medicine: updated._id,
+            medicineName: updated.name,
+            type: ledgerMeta.type,
+            quantityChange: -deductDelta,
+            balanceAfter: updated.quantity,
+            referenceType: ledgerMeta.referenceType,
+            referenceId: ledgerMeta.referenceId,
+            referenceLabel: ledgerMeta.referenceLabel,
+            notes: ledgerMeta.notes,
+          },
+          session,
+        );
+      }
     } else {
-      await Medicine.findByIdAndUpdate(
+      const updated = await Medicine.findByIdAndUpdate(
         medicineId,
         { $inc: { quantity: Math.abs(deductDelta) } },
-        { session },
+        { session, new: true },
       );
+
+      if (updated && ledgerMeta) {
+        await recordLedgerEntry(
+          {
+            medicine: updated._id,
+            medicineName: updated.name,
+            type: ledgerMeta.type,
+            quantityChange: Math.abs(deductDelta),
+            balanceAfter: updated.quantity,
+            referenceType: ledgerMeta.referenceType,
+            referenceId: ledgerMeta.referenceId,
+            referenceLabel: ledgerMeta.referenceLabel,
+            notes: ledgerMeta.notes,
+          },
+          session,
+        );
+      }
     }
   }
 }
@@ -120,16 +155,40 @@ async function withTransaction(fn) {
   }
 }
 
-async function deductStockForItems(items, session) {
-  await applyStockChanges(aggregateStockByMedicine(items), session);
+async function deductStockForItems(items, session, ledgerMeta) {
+  await applyStockChanges(aggregateStockByMedicine(items), session, ledgerMeta);
 }
 
-async function restoreStockForItems(items, session) {
+async function restoreStockForItems(items, session, ledgerMeta) {
   const totals = aggregateStockByMedicine(items);
   const restoreChanges = new Map(
     [...totals.entries()].map(([medicineId, units]) => [medicineId, -units]),
   );
-  await applyStockChanges(restoreChanges, session);
+  await applyStockChanges(restoreChanges, session, ledgerMeta);
+}
+
+function invertStockChanges(changes) {
+  return new Map(
+    [...changes.entries()].map(([medicineId, units]) => [medicineId, -units]),
+  );
+}
+
+async function applyInvoiceStockChanges(invoiceType, changes, session, ledgerMeta) {
+  const adjusted =
+    invoiceType === "purchase" ? invertStockChanges(changes) : changes;
+
+  await applyStockChanges(adjusted, session, {
+    ...ledgerMeta,
+    type: invoiceType === "purchase" ? "purchase" : "sale",
+  });
+}
+
+async function addStockForItems(items, session, ledgerMeta) {
+  const totals = aggregateStockByMedicine(items);
+  const addChanges = new Map(
+    [...totals.entries()].map(([medicineId, units]) => [medicineId, -units]),
+  );
+  await applyStockChanges(addChanges, session, ledgerMeta);
 }
 
 module.exports = {
@@ -139,6 +198,8 @@ module.exports = {
   applyStockChanges,
   deductStockForItems,
   restoreStockForItems,
+  addStockForItems,
+  applyInvoiceStockChanges,
   withTransaction,
   isInvoiceStockActive,
 };
