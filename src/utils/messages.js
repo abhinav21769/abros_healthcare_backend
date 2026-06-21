@@ -50,6 +50,8 @@ const ERRORS = {
     customer: "Could not save customer. Please check the details and try again.",
     invoice: "Could not save invoice. Please check the details and try again.",
   },
+  insufficientStock:
+    "Not enough stock in inventory for one or more medicines on this invoice.",
   deleteFailed: {
     medicine: "Could not remove medicine. Please try again.",
     customer: "Could not remove customer. Please try again.",
@@ -128,6 +130,10 @@ function getDuplicateMessage(error) {
 }
 
 function getUserMessage(error, fallback = ERRORS.generic) {
+  if (error?.name === "InsufficientStockError") {
+    return error.message;
+  }
+
   return (
     getDuplicateMessage(error) ||
     getValidationMessage(error) ||

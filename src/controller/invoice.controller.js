@@ -3,6 +3,15 @@ const { ERROR_CODES, sendSuccess, sendError } = require("../utils/response");
 const { SUCCESS, ERRORS, getUserMessage } = require("../utils/messages");
 
 const { buildInvoiceTotals } = require("../utils/invoiceTax");
+const {
+  InsufficientStockError,
+  applyStockChanges,
+  computeStockChanges,
+  deductStockForItems,
+  isInvoiceStockActive,
+  restoreStockForItems,
+  withTransaction,
+} = require("../services/inventory.service");
 
 const MEDICINE_POPULATE_FIELDS =
   "name mrp rate packagingType batchNumber expiryDate manufacturer hsn gstRate";
@@ -32,16 +41,27 @@ const createInvoice = async (req, res) => {
       subtotal,
       total,
     } = buildInvoiceTotals(items);
+    const status = rest.status || "pending";
 
-    const invoice = new Invoice({
-      ...rest,
-      invoiceDate: normalizeInvoiceDate(invoiceDate),
-      items: normalizedItems,
-      subtotal,
-      total,
+    const invoice = await withTransaction(async (session) => {
+      const created = new Invoice({
+        ...rest,
+        status,
+        invoiceDate: normalizeInvoiceDate(invoiceDate),
+        items: normalizedItems,
+        subtotal,
+        total,
+      });
+
+      await created.save({ session });
+
+      if (isInvoiceStockActive(status)) {
+        await deductStockForItems(normalizedItems, session);
+      }
+
+      return created;
     });
 
-    await invoice.save();
     await invoice.populate("customer", "name address contact gstin dlNo");
     await invoice.populate("items.medicine", MEDICINE_POPULATE_FIELDS);
 
@@ -54,9 +74,11 @@ const createInvoice = async (req, res) => {
     return sendError(res, {
       message: ERRORS.saveFailed.invoice,
       code:
-        error.code === 11000
-          ? ERROR_CODES.DUPLICATE_KEY
-          : ERROR_CODES.VALIDATION_ERROR,
+        error instanceof InsufficientStockError
+          ? ERROR_CODES.VALIDATION_ERROR
+          : error.code === 11000
+            ? ERROR_CODES.DUPLICATE_KEY
+            : ERROR_CODES.VALIDATION_ERROR,
       errorMessage: getUserMessage(error, ERRORS.saveFailed.invoice),
       statusCode: 400,
     });
@@ -144,24 +166,46 @@ const getInvoiceById = async (req, res) => {
 const updateInvoice = async (req, res) => {
   try {
     const updateData = { ...req.body };
+    let normalizedItems;
 
     if (updateData.items) {
-      const { items, subtotal, total } = buildInvoiceTotals(updateData.items);
-      updateData.items = items;
-      updateData.subtotal = subtotal;
-      updateData.total = total;
+      const totals = buildInvoiceTotals(updateData.items);
+      normalizedItems = totals.items;
+      updateData.items = totals.items;
+      updateData.subtotal = totals.subtotal;
+      updateData.total = totals.total;
     }
 
     if (updateData.invoiceDate) {
       updateData.invoiceDate = normalizeInvoiceDate(updateData.invoiceDate);
     }
 
-    const invoice = await Invoice.findByIdAndUpdate(req.params.id, updateData, {
-      new: true,
-      runValidators: true,
-    })
-      .populate("customer", "name address contact gstin dlNo")
-      .populate("items.medicine", MEDICINE_POPULATE_FIELDS);
+    const invoice = await withTransaction(async (session) => {
+      const existing = await Invoice.findById(req.params.id).session(session);
+
+      if (!existing) {
+        return null;
+      }
+
+      const oldStatus = existing.status;
+      const newStatus = updateData.status ?? oldStatus;
+      const oldItems = existing.items;
+      const newItems = normalizedItems ?? oldItems;
+
+      const stockChanges = computeStockChanges(
+        oldItems,
+        oldStatus,
+        newItems,
+        newStatus,
+      );
+      await applyStockChanges(stockChanges, session);
+
+      return Invoice.findByIdAndUpdate(req.params.id, updateData, {
+        new: true,
+        runValidators: true,
+        session,
+      });
+    });
 
     if (!invoice) {
       return sendError(res, {
@@ -172,6 +216,9 @@ const updateInvoice = async (req, res) => {
       });
     }
 
+    await invoice.populate("customer", "name address contact gstin dlNo");
+    await invoice.populate("items.medicine", MEDICINE_POPULATE_FIELDS);
+
     return sendSuccess(res, {
       message: SUCCESS.invoice.updated,
       data: invoice,
@@ -180,9 +227,11 @@ const updateInvoice = async (req, res) => {
     return sendError(res, {
       message: ERRORS.saveFailed.invoice,
       code:
-        error.code === 11000
-          ? ERROR_CODES.DUPLICATE_KEY
-          : ERROR_CODES.VALIDATION_ERROR,
+        error instanceof InsufficientStockError
+          ? ERROR_CODES.VALIDATION_ERROR
+          : error.code === 11000
+            ? ERROR_CODES.DUPLICATE_KEY
+            : ERROR_CODES.VALIDATION_ERROR,
       errorMessage: getUserMessage(error, ERRORS.saveFailed.invoice),
       statusCode: 400,
     });
@@ -191,7 +240,20 @@ const updateInvoice = async (req, res) => {
 
 const deleteInvoice = async (req, res) => {
   try {
-    const invoice = await Invoice.findByIdAndDelete(req.params.id);
+    const invoice = await withTransaction(async (session) => {
+      const existing = await Invoice.findById(req.params.id).session(session);
+
+      if (!existing) {
+        return null;
+      }
+
+      if (isInvoiceStockActive(existing.status)) {
+        await restoreStockForItems(existing.items, session);
+      }
+
+      await Invoice.findByIdAndDelete(req.params.id, { session });
+      return existing;
+    });
 
     if (!invoice) {
       return sendError(res, {
