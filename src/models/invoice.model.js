@@ -32,7 +32,7 @@ const invoiceItemSchema = new mongoose.Schema(
       min: [0, "Amount cannot be negative"],
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const invoiceSchema = new mongoose.Schema(
@@ -71,6 +71,11 @@ const invoiceSchema = new mongoose.Schema(
       enum: ["pending", "paid", "cancelled"],
       default: "pending",
     },
+    paymentType: {
+      type: String,
+      enum: ["credit", "cash"],
+      default: "credit",
+    },
     invoiceDate: {
       type: Date,
       default: Date.now,
@@ -82,7 +87,7 @@ const invoiceSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 invoiceSchema.index({ invoiceNumber: 1 });
