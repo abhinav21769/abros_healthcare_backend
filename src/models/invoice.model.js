@@ -26,6 +26,10 @@ const invoiceItemSchema = new mongoose.Schema(
       required: [true, "Rate is required"],
       min: [0, "Rate cannot be negative"],
     },
+    hsn: {
+      type: String,
+      trim: true,
+    },
     amount: {
       type: Number,
       required: true,

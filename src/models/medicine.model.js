@@ -41,6 +41,10 @@ const medicineSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    hsn: {
+      type: String,
+      trim: true,
+    },
     description: {
       type: String,
       trim: true,

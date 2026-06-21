@@ -314,6 +314,7 @@ const swaggerDocument = {
           quantity: { type: "number", example: 100 },
           batchNumber: { type: "string", example: "BATCH-001" },
           manufacturer: { type: "string", example: "Abros Pharma" },
+          hsn: { type: "string", example: "3004" },
           description: { type: "string", example: "Pain relief tablet" },
         },
       },

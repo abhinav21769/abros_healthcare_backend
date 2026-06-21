@@ -3,7 +3,7 @@ const { ERROR_CODES, sendSuccess, sendError } = require("../utils/response");
 const { SUCCESS, ERRORS, getUserMessage } = require("../utils/messages");
 
 const MEDICINE_POPULATE_FIELDS =
-  "name mrp rate packagingType batchNumber expiryDate";
+  "name mrp rate packagingType batchNumber expiryDate manufacturer hsn";
 
 const calculateItemAmount = (quantity, rate) =>
   Math.round(quantity * rate * 100) / 100;
@@ -50,7 +50,11 @@ const buildInvoiceTotals = (items) => {
 const createInvoice = async (req, res) => {
   try {
     const { items, invoiceDate, ...rest } = req.body;
-    const { items: normalizedItems, subtotal, total } = buildInvoiceTotals(items);
+    const {
+      items: normalizedItems,
+      subtotal,
+      total,
+    } = buildInvoiceTotals(items);
 
     const invoice = new Invoice({
       ...rest,
@@ -72,7 +76,10 @@ const createInvoice = async (req, res) => {
   } catch (error) {
     return sendError(res, {
       message: ERRORS.saveFailed.invoice,
-      code: error.code === 11000 ? ERROR_CODES.DUPLICATE_KEY : ERROR_CODES.VALIDATION_ERROR,
+      code:
+        error.code === 11000
+          ? ERROR_CODES.DUPLICATE_KEY
+          : ERROR_CODES.VALIDATION_ERROR,
       errorMessage: getUserMessage(error, ERRORS.saveFailed.invoice),
       statusCode: 400,
     });
@@ -195,7 +202,10 @@ const updateInvoice = async (req, res) => {
   } catch (error) {
     return sendError(res, {
       message: ERRORS.saveFailed.invoice,
-      code: error.code === 11000 ? ERROR_CODES.DUPLICATE_KEY : ERROR_CODES.VALIDATION_ERROR,
+      code:
+        error.code === 11000
+          ? ERROR_CODES.DUPLICATE_KEY
+          : ERROR_CODES.VALIDATION_ERROR,
       errorMessage: getUserMessage(error, ERRORS.saveFailed.invoice),
       statusCode: 400,
     });
@@ -234,7 +244,9 @@ const getInvoiceStats = async (req, res) => {
     const totalInvoices = await Invoice.countDocuments();
     const pendingInvoices = await Invoice.countDocuments({ status: "pending" });
     const paidInvoices = await Invoice.countDocuments({ status: "paid" });
-    const cancelledInvoices = await Invoice.countDocuments({ status: "cancelled" });
+    const cancelledInvoices = await Invoice.countDocuments({
+      status: "cancelled",
+    });
 
     const revenueResult = await Invoice.aggregate([
       { $match: { status: "paid" } },
