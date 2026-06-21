@@ -2,9 +2,26 @@ const Customer = require("../models/customer.model");
 const { ERROR_CODES, sendSuccess, sendError } = require("../utils/response");
 const { SUCCESS, ERRORS, getUserMessage } = require("../utils/messages");
 
+const normalizeCustomerPayload = (body = {}) => {
+  const payload = { ...body };
+
+  for (const field of ["gstin", "dlNo", "contact"]) {
+    const value = payload[field];
+    if (value == null || String(value).trim() === "") {
+      delete payload[field];
+    } else if (field === "gstin" || field === "dlNo") {
+      payload[field] = String(value).trim().toUpperCase();
+    } else {
+      payload[field] = String(value).trim();
+    }
+  }
+
+  return payload;
+};
+
 const createCustomer = async (req, res) => {
   try {
-    const customer = new Customer(req.body);
+    const customer = new Customer(normalizeCustomerPayload(req.body));
     await customer.save();
     return sendSuccess(res, {
       message: SUCCESS.customer.created,
@@ -135,10 +152,14 @@ const getCustomerByDlNo = async (req, res) => {
 
 const updateCustomer = async (req, res) => {
   try {
-    const customer = await Customer.findByIdAndUpdate(req.params.id, req.body, {
+    const customer = await Customer.findByIdAndUpdate(
+      req.params.id,
+      normalizeCustomerPayload(req.body),
+      {
       new: true,
       runValidators: true,
-    });
+    },
+    );
 
     if (!customer) {
       return sendError(res, {

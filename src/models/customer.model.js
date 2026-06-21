@@ -20,27 +20,23 @@ const customerSchema = new mongoose.Schema(
     },
     gstin: {
       type: String,
-
       trim: true,
       uppercase: true,
-      unique: true,
     },
     dlNo: {
       type: String,
-
       trim: true,
       uppercase: true,
-      unique: true,
     },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
-// Index for efficient searching
-// Note: dlNo and gstin already have indexes due to unique: true
 customerSchema.index({ name: 1, contact: 1 });
+customerSchema.index({ gstin: 1 }, { unique: true, sparse: true });
+customerSchema.index({ dlNo: 1 }, { unique: true, sparse: true });
 
 const Customer = mongoose.model("Customer", customerSchema);
 
