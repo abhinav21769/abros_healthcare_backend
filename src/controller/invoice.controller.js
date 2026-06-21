@@ -297,9 +297,34 @@ const getInvoiceStats = async (req, res) => {
 
 const generateInvoiceNumber = async (req, res) => {
   try {
-    const count = await Invoice.countDocuments();
-    const year = new Date().getFullYear();
-    const invoiceNumber = `AH-${year}-${String(count + 1).padStart(4, "0")}`;
+    const year = Number(
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+      }).format(new Date()),
+    );
+    const shortYear = String(year).slice(-2);
+    const prefix = `AH-${shortYear}-`;
+    const legacyPrefix = `AH-${year}-`;
+    const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    const count = await Invoice.countDocuments({
+      $or: [
+        {
+          invoiceNumber: {
+            $regex: `^${escapeRegex(prefix)}`,
+            $options: "i",
+          },
+        },
+        {
+          invoiceNumber: {
+            $regex: `^${escapeRegex(legacyPrefix)}`,
+            $options: "i",
+          },
+        },
+      ],
+    });
+    const invoiceNumber = `${prefix}${String(count + 1).padStart(2, "0")}`;
 
     return sendSuccess(res, {
       data: { invoiceNumber },
