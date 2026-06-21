@@ -14,6 +14,10 @@ const SUCCESS = {
     updated: "Invoice updated successfully.",
     deleted: "Invoice deleted successfully.",
   },
+  auth: {
+    login: "Signed in successfully.",
+    userCreated: "User created successfully.",
+  },
 };
 
 const ERRORS = {
@@ -54,6 +58,15 @@ const ERRORS = {
     gstin: "A customer with this GSTIN already exists.",
     dlNo: "A customer with this Drug License number already exists.",
     invoiceNumber: "This invoice number is already in use. Please use a different number.",
+    username: "This username is already taken.",
+  },
+  auth: {
+    unauthorized: "Please sign in to continue.",
+    forbidden: "You are not allowed to perform this action.",
+    invalidCredentials: "Invalid username or password.",
+    loginFailed: "Could not sign in. Please try again.",
+    userCreateFailed: "Could not create user. Please check the details and try again.",
+    misconfigured: "Authentication is not configured on the server.",
   },
 };
 
@@ -83,6 +96,7 @@ const DUPLICATE_FIELD_LABELS = {
   gstin: ERRORS.duplicate.gstin,
   dlNo: ERRORS.duplicate.dlNo,
   invoiceNumber: ERRORS.duplicate.invoiceNumber,
+  username: ERRORS.duplicate.username,
 };
 
 function simplifyValidationMessage(message) {
