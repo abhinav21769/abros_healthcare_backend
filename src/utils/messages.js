@@ -42,6 +42,7 @@ const ERRORS = {
     invoices: "Could not load invoices. Please refresh and try again.",
     invoice: "Could not load invoice details. Please try again.",
     invoiceStats: "Could not load invoice summary. Please try again.",
+    dashboardStats: "Could not load dashboard summary. Please try again.",
     invoiceNumber: "Could not create a new invoice number. Please try again.",
   },
   saveFailed: {

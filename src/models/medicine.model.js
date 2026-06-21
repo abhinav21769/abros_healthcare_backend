@@ -67,6 +67,8 @@ const medicineSchema = new mongoose.Schema(
 
 // Index for efficient querying
 medicineSchema.index({ name: 1, expiryDate: 1 });
+medicineSchema.index({ expiryDate: 1 });
+medicineSchema.index({ quantity: 1 });
 
 // Virtual for checking if medicine is expired
 medicineSchema.virtual("isExpired").get(function () {

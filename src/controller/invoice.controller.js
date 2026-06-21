@@ -239,41 +239,13 @@ const deleteInvoice = async (req, res) => {
   }
 };
 
+const { getInvoiceStatsData } = require("../services/stats.service");
+
 const getInvoiceStats = async (req, res) => {
   try {
-    const totalInvoices = await Invoice.countDocuments();
-    const pendingInvoices = await Invoice.countDocuments({ status: "pending" });
-    const paidInvoices = await Invoice.countDocuments({ status: "paid" });
-    const cancelledInvoices = await Invoice.countDocuments({
-      status: "cancelled",
-    });
+    const data = await getInvoiceStatsData();
 
-    const revenueResult = await Invoice.aggregate([
-      { $match: { status: "paid" } },
-      { $group: { _id: null, totalRevenue: { $sum: "$total" } } },
-    ]);
-    const totalRevenue =
-      revenueResult.length > 0 ? revenueResult[0].totalRevenue : 0;
-
-    const pendingResult = await Invoice.aggregate([
-      { $match: { status: "pending" } },
-      { $group: { _id: null, pendingAmount: { $sum: "$total" } } },
-    ]);
-    const pendingAmount =
-      pendingResult.length > 0 ? pendingResult[0].pendingAmount : 0;
-
-    return sendSuccess(res, {
-      data: {
-        stats: {
-          totalInvoices,
-          pendingInvoices,
-          paidInvoices,
-          cancelledInvoices,
-          totalRevenue: totalRevenue.toFixed(2),
-          pendingAmount: pendingAmount.toFixed(2),
-        },
-      },
-    });
+    return sendSuccess(res, { data });
   } catch (error) {
     return sendError(res, {
       message: ERRORS.loadFailed.invoiceStats,

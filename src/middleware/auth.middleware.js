@@ -3,6 +3,28 @@ const User = require("../models/user.model");
 const { ERROR_CODES, sendError } = require("../utils/response");
 const { ERRORS } = require("../utils/messages");
 
+const USER_CACHE_TTL_MS = 5 * 60 * 1000;
+const userCache = new Map();
+
+const getCachedUser = async (userId) => {
+  const cacheKey = String(userId);
+  const cached = userCache.get(cacheKey);
+
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.user;
+  }
+
+  const user = await User.findById(userId).select("-password").lean();
+  if (user) {
+    userCache.set(cacheKey, {
+      user,
+      expiresAt: Date.now() + USER_CACHE_TTL_MS,
+    });
+  }
+
+  return user;
+};
+
 const authenticate = async (req, res, next) => {
   try {
     const header = req.headers.authorization || "";
@@ -28,7 +50,7 @@ const authenticate = async (req, res, next) => {
     }
 
     const payload = jwt.verify(token, secret);
-    const user = await User.findById(payload.userId).select("-password");
+    const user = await getCachedUser(payload.userId);
 
     if (!user || !user.isActive) {
       return sendError(res, {

@@ -8,14 +8,13 @@ const authRoutes = require("./src/routes/auth.routes");
 const medicineRoutes = require("./src/routes/medicine.routes");
 const customerRoutes = require("./src/routes/customer.routes");
 const invoiceRoutes = require("./src/routes/invoice.routes");
+const dashboardRoutes = require("./src/routes/dashboard.routes");
 const { authenticate } = require("./src/middleware/auth.middleware");
 const { ERROR_CODES, sendSuccess, sendError } = require("./src/utils/response");
 const { ERRORS } = require("./src/utils/messages");
 
 const app = express();
 const isProduction = process.env.NODE_ENV === "production";
-
-connectDB();
 
 app.use(cors());
 app.use(express.json());
@@ -24,6 +23,10 @@ app.use(express.urlencoded({ extended: true }));
 if (!isProduction) {
   app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 }
+
+app.get("/health", (req, res) => {
+  res.status(200).send("ok");
+});
 
 app.get("/", (req, res) => {
   return sendSuccess(res, {
@@ -35,6 +38,7 @@ app.get("/", (req, res) => {
         medicines: "/api/medicines",
         customers: "/api/customers",
         invoices: "/api/invoices",
+        dashboard: "/api/dashboard",
         ...(isProduction ? {} : { swagger: "/api-docs" }),
       },
     },
@@ -45,6 +49,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/medicines", authenticate, medicineRoutes);
 app.use("/api/customers", authenticate, customerRoutes);
 app.use("/api/invoices", authenticate, invoiceRoutes);
+app.use("/api/dashboard", authenticate, dashboardRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -67,8 +72,19 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+const startServer = async () => {
+  await connectDB();
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+};
+
+if (require.main === module) {
+  startServer().catch((error) => {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  });
+}
 
 module.exports = app;

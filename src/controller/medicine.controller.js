@@ -213,91 +213,14 @@ const getExpiredMedicines = async (req, res) => {
   }
 };
 
+const { getInventoryStatsData } = require("../services/stats.service");
+
 const getInventoryStats = async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 30;
-    const today = new Date();
-    const futureDate = new Date();
-    futureDate.setDate(today.getDate() + days);
+    const data = await getInventoryStatsData(days);
 
-    const totalStock = await Medicine.countDocuments();
-
-    const expiredStock = await Medicine.countDocuments({
-      expiryDate: { $lt: today },
-    });
-
-    const expiringStock = await Medicine.countDocuments({
-      expiryDate: {
-        $gte: today,
-        $lte: futureDate,
-      },
-    });
-
-    const activeStock = await Medicine.countDocuments({
-      expiryDate: { $gte: today },
-    });
-
-    const totalQuantityResult = await Medicine.aggregate([
-      { $group: { _id: null, totalQuantity: { $sum: "$quantity" } } },
-    ]);
-    const totalQuantity =
-      totalQuantityResult.length > 0 ? totalQuantityResult[0].totalQuantity : 0;
-
-    const totalValueResult = await Medicine.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalValue: { $sum: { $multiply: ["$rate", "$quantity"] } },
-        },
-      },
-    ]);
-    const totalInventoryValue =
-      totalValueResult.length > 0 ? totalValueResult[0].totalValue : 0;
-
-    const expiredMedicines = await Medicine.find({
-      expiryDate: { $lt: today },
-    })
-      .select("name expiryDate quantity mrp manufacturer")
-      .sort({ expiryDate: -1 })
-      .limit(10);
-
-    const expiringMedicines = await Medicine.find({
-      expiryDate: {
-        $gte: today,
-        $lte: futureDate,
-      },
-    })
-      .select("name expiryDate quantity mrp manufacturer")
-      .sort({ expiryDate: 1 })
-      .limit(10);
-
-    const lowStockCount = await Medicine.countDocuments({
-      quantity: { $lt: 10 },
-    });
-
-    return sendSuccess(res, {
-      data: {
-        stats: {
-          totalStock,
-          activeStock,
-          expiredStock,
-          expiringStock,
-          expiringWithinDays: days,
-          lowStockCount,
-          totalQuantity,
-          totalInventoryValue: totalInventoryValue.toFixed(2),
-        },
-        expiredMedicines: {
-          count: expiredStock,
-          list: expiredMedicines,
-        },
-        expiringMedicines: {
-          count: expiringStock,
-          withinDays: days,
-          list: expiringMedicines,
-        },
-      },
-    });
+    return sendSuccess(res, { data });
   } catch (error) {
     return sendError(res, {
       message: ERRORS.loadFailed.inventoryStats,

@@ -190,17 +190,13 @@ const deleteCustomer = async (req, res) => {
   }
 };
 
+const { getCustomerStatsData } = require("../services/stats.service");
+
 const getCustomerStats = async (req, res) => {
   try {
-    const totalCustomers = await Customer.countDocuments();
+    const data = await getCustomerStatsData();
 
-    return sendSuccess(res, {
-      data: {
-        stats: {
-          totalCustomers,
-        },
-      },
-    });
+    return sendSuccess(res, { data });
   } catch (error) {
     return sendError(res, {
       message: ERRORS.loadFailed.customerStats,
