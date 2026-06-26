@@ -291,10 +291,7 @@ const deleteInvoice = async (req, res) => {
       }
 
       if (
-        isInvoiceStockActive(
-          existing.status,
-          existing.invoiceType || "sale",
-        )
+        isInvoiceStockActive(existing.status, existing.invoiceType || "sale")
       ) {
         const ledgerMeta = {
           referenceType: "invoice",
@@ -359,22 +356,35 @@ const getInvoiceStats = async (req, res) => {
     });
   }
 };
-
 const generateInvoiceNumber = async (req, res) => {
   try {
     const invoiceType = normalizeInvoiceType(req.query.invoiceType);
+
     const year = Number(
       new Intl.DateTimeFormat("en-CA", {
         timeZone: "Asia/Kolkata",
         year: "numeric",
       }).format(new Date()),
     );
-    const shortYear = String(year).slice(-2);
+
+    const fullYear = String(year);
+
     const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+    // ===========================
+    // PURCHASE INVOICE
+    // Format: PO-2026-001
+    // ===========================
     if (invoiceType === "purchase") {
-      const prefix = `PO-${shortYear}-`;
-      const legacyPrefixes = [prefix, `PUR-${shortYear}-`, `PAH-${shortYear}-`];
+      const prefix = `PO-${fullYear}-`;
+
+      // Count old and new formats
+      const legacyPrefixes = [
+        prefix, // PO-2026-
+        `PO-${String(year).slice(-2)}-`, // PO-26-
+        `PUR-${String(year).slice(-2)}-`,
+        `PAH-${String(year).slice(-2)}-`,
+      ];
 
       const count = await Invoice.countDocuments({
         invoiceType: "purchase",
@@ -385,39 +395,49 @@ const generateInvoiceNumber = async (req, res) => {
           },
         })),
       });
-      const invoiceNumber = `${prefix}${String(count + 1).padStart(2, "0")}`;
+
+      const invoiceNumber = `${prefix}${String(count + 1).padStart(3, "0")}`;
 
       return sendSuccess(res, {
-        data: { invoiceNumber, invoiceType: "purchase" },
+        data: {
+          invoiceNumber,
+          invoiceType: "purchase",
+        },
       });
     }
 
-    const prefix = `AH-${shortYear}-`;
-    const legacyPrefix = `AH-${year}-`;
+    // ===========================
+    // SALE INVOICE
+    // Format: AH-2026-001
+    // ===========================
+    const prefix = `AH-${fullYear}-`;
+
+    const legacyPrefixes = [
+      prefix, // AH-2026-
+      `AH-${String(year).slice(-2)}-`, // AH-26-
+    ];
 
     const count = await Invoice.countDocuments({
       invoiceType: { $in: ["sale", null] },
-      $or: [
-        {
-          invoiceNumber: {
-            $regex: `^${escapeRegex(prefix)}`,
-            $options: "i",
-          },
+      $or: legacyPrefixes.map((legacyPrefix) => ({
+        invoiceNumber: {
+          $regex: `^${escapeRegex(legacyPrefix)}`,
+          $options: "i",
         },
-        {
-          invoiceNumber: {
-            $regex: `^${escapeRegex(legacyPrefix)}`,
-            $options: "i",
-          },
-        },
-      ],
+      })),
     });
-    const invoiceNumber = `${prefix}${String(count + 1).padStart(2, "0")}`;
+
+    const invoiceNumber = `${prefix}${String(count + 1).padStart(3, "0")}`;
 
     return sendSuccess(res, {
-      data: { invoiceNumber, invoiceType: "sale" },
+      data: {
+        invoiceNumber,
+        invoiceType: "sale",
+      },
     });
   } catch (error) {
+    console.error("Generate Invoice Number Error:", error);
+
     return sendError(res, {
       message: ERRORS.loadFailed.invoiceNumber,
       code: ERROR_CODES.INTERNAL_ERROR,
